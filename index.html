@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RxPulse - Nursing Drug Reference</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 sm:p-8">
+  <div class="max-w-xl mx-auto">
+    <header class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-slate-800">RxPulse</h1>
+      <p class="text-slate-600 text-sm mt-1">Quick Clinical Medication Lookup</p>
+    </header>
+
+    <div class="flex gap-2 mb-6">
+      <input 
+        type="text" 
+        id="drugInput" 
+        placeholder="Enter drug name (e.g., Lisinopril)..." 
+        onkeydown="if(event.key === 'Enter') searchDrug()"
+        class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+      <button 
+        onclick="searchDrug()" 
+        class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+      >
+        Search
+      </button>
+    </div>
+
+    <div id="resultContainer" class="space-y-4"></div>
+  </div>
+
+  <script>
+    async function searchDrug() {
+      const query = document.getElementById('drugInput').value.trim();
+      const container = document.getElementById('resultContainer');
+      
+      if (!query) return;
+
+      container.innerHTML = '<p class="text-center text-slate-500">Searching openFDA database...</p>';
+
+      const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:${encodeURIComponent(query)}+OR+openfda.generic_name:${encodeURIComponent(query)}&limit=1`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Medication not found.');
+
+        const data = await response.json();
+        const drug = data.results[0];
+
+        const brand = drug.openfda?.brand_name?.[0] || query;
+        const generic = drug.openfda?.generic_name?.[0] || 'N/A';
+        const indications = drug.indications_and_usage?.[0] || 'No indications listed.';
+        const warnings = drug.warnings?.[0] || 'No warnings listed.';
+
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800 uppercase">${brand}</h2>
+              <p class="text-sm text-slate-500 font-medium">Generic: ${generic}</p>
+            </div>
+            <div>
+              <h3 class="font-semibold text-slate-700 text-sm uppercase tracking-wide">Indications & Usage</h3>
+              <p class="text-slate-600 text-sm mt-1 leading-relaxed">${indications.substring(0, 400)}...</p>
+            </div>
+            <div>
+              <h3 class="font-semibold text-slate-700 text-sm uppercase tracking-wide">Warnings</h3>
+              <p class="text-slate-600 text-sm mt-1 leading-relaxed">${warnings.substring(0, 400)}...</p>
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm">Could not find data for "${query}". Try another medication name.</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
