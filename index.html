@@ -26,7 +26,7 @@
         <input 
           type="text" 
           id="drugInput" 
-          placeholder="Enter drug name (e.g., lisinopril, amoxicillin)..." 
+          placeholder="Enter drug name (e.g., ampicillin, lisinopril)..." 
           onkeydown="if(event.key === 'Enter') searchDrug()"
           class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm text-sm"
         >
@@ -111,13 +111,13 @@
         const brand = drug.openfda?.brand_name?.[0] || query;
         const generic = drug.openfda?.generic_name?.[0] || query;
         
-        // Strict mapping targeting exact pharmacologic class fields, avoiding ingredient name cross-contamination
-        const classification = drug.openfda?.pharm_class_epc?.[0] || 'Classification data pending package insert update.';
-        const drugClass = drug.openfda?.pharm_class_epc?.[0] || drug.openfda?.pharm_class_moa?.[0] || 'Drug class not explicitly listed.';
+        const drugClass = drug.openfda?.pharm_class_epc?.[0] || 'Drug class not explicitly listed.';
         const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || 'Mechanism of action data not explicitly listed.';
         const indications = drug.indications_and_usage?.[0] || 'No therapeutic use / indications listed.';
         const adverse = drug.adverse_reactions?.[0] || 'No adverse reactions listed.';
-        const warnings = drug.warnings?.[0] || drug.boxed_warning?.[0] || 'No specific nursing considerations or warnings listed.';
+        
+        // Robust fallback checking multiple warning fields in XML schema
+        const warnings = drug.warnings?.[0] || drug.boxed_warning?.[0] || drug.precautions?.[0] || drug.spl_unclassified_section?.[0] || 'No specific nursing considerations or warnings listed in structured fields.';
 
         container.innerHTML = `
           <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
@@ -127,14 +127,6 @@
                 <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic: ${generic}</p>
               </div>
               <button onclick="document.getElementById('resultContainer').innerHTML='';" class="text-xs text-slate-400 hover:text-slate-600">Back</button>
-            </div>
-
-            <div>
-              <div class="flex justify-between items-center bg-slate-100 p-2 rounded">
-                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider">Classification</h3>
-                <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
-              </div>
-              <p class="text-slate-600 text-sm mt-2 leading-relaxed uppercase">${classification}</p>
             </div>
 
             <div>
@@ -179,7 +171,7 @@
           </div>
         `;
       } catch (error) {
-        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try typing a standard generic name like "lisinopril" or "amoxicillin".</div>`;
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try typing a standard generic name like "ampicillin" or "lisinopril".</div>`;
       }
     }
 
