@@ -5,25 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RxPulse - Nursing Drug Reference</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-50 min-h-screen p-4 sm:p-8">
-  <div class="max-w-xl mx-auto">
+  <div class="max-w-2xl mx-auto">
     <header class="text-center mb-8">
       <h1 class="text-3xl font-bold text-slate-800">RxPulse</h1>
-      <p class="text-slate-600 text-sm mt-1">Quick Clinical Medication Lookup</p>
+      <p class="text-slate-600 text-sm mt-1">Targeted Clinical Medication Lookup</p>
     </header>
 
     <div class="flex gap-2 mb-6">
       <input 
         type="text" 
         id="drugInput" 
-        placeholder="Enter drug name (e.g., Lisinopril)..." 
+        placeholder="Enter drug name (e.g., Metformin, Lisinopril)..." 
         onkeydown="if(event.key === 'Enter') searchDrug()"
-        class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
       >
       <button 
         onclick="searchDrug()" 
-        class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+        class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-sm"
       >
         Search
       </button>
@@ -39,9 +40,9 @@
       
       if (!query) return;
 
-      container.innerHTML = '<p class="text-center text-slate-500">Searching openFDA database...</p>';
+      container.innerHTML = '<p class="text-center text-slate-500 py-6">Searching openFDA clinical database...</p>';
 
-      const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:${encodeURIComponent(query)}+OR+openfda.generic_name:${encodeURIComponent(query)}&limit=1`;
+      const url = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(query)}"+OR+openfda.brand_name:"${encodeURIComponent(query)}"&limit=1`;
 
       try {
         const response = await fetch(url);
@@ -52,27 +53,29 @@
 
         const brand = drug.openfda?.brand_name?.[0] || query;
         const generic = drug.openfda?.generic_name?.[0] || 'N/A';
+        const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || drug.openfda?.pharmacologic_class?.[0] || 'Classification data not explicitly listed in FDA structured fields.';
         const indications = drug.indications_and_usage?.[0] || 'No indications listed.';
-        const warnings = drug.warnings?.[0] || 'No warnings listed.';
 
         container.innerHTML = `
-          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
-            <div>
-              <h2 class="text-xl font-bold text-slate-800 uppercase">${brand}</h2>
-              <p class="text-sm text-slate-500 font-medium">Generic: ${generic}</p>
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+            <div class="border-b pb-4">
+              <h2 class="text-2xl font-bold text-slate-800 uppercase tracking-wide">${brand}</h2>
+              <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic: ${generic}</p>
             </div>
+
             <div>
-              <h3 class="font-semibold text-slate-700 text-sm uppercase tracking-wide">Indications & Usage</h3>
-              <p class="text-slate-600 text-sm mt-1 leading-relaxed">${indications.substring(0, 400)}...</p>
+              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Pharmacological / Chemical Class</h3>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${pharmacologicClass}</p>
             </div>
+
             <div>
-              <h3 class="font-semibold text-slate-700 text-sm uppercase tracking-wide">Warnings</h3>
-              <p class="text-slate-600 text-sm mt-1 leading-relaxed">${warnings.substring(0, 400)}...</p>
+              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Indications & Usage</h3>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${indications.substring(0, 600)}...</p>
             </div>
           </div>
         `;
       } catch (error) {
-        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm">Could not find data for "${query}". Try another medication name.</div>`;
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try another exact generic name.</div>`;
       }
     }
   </script>
