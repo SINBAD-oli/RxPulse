@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RxPulse - Nursing Drug Reference</title>
+  <title>RxPulse - Nursing Drug & Class Reference</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -11,109 +11,220 @@
   <div class="max-w-2xl mx-auto">
     <header class="text-center mb-8">
       <h1 class="text-3xl font-bold text-slate-800">RxPulse</h1>
-      <p class="text-slate-600 text-sm mt-1">Targeted Clinical Medication Lookup</p>
+      <p class="text-slate-600 text-sm mt-1">Nursing Pharmacology Reference & Class Browser</p>
     </header>
 
-    <div class="flex gap-2 mb-6">
-      <input 
-        type="text" 
-        id="drugInput" 
-        placeholder="Enter drug name (brand or generic, e.g., Glucophage, Lisinopril)..." 
-        onkeydown="if(event.key === 'Enter') searchDrug()"
-        class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
-      >
-      <button 
-        onclick="searchDrug()" 
-        class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-sm"
-      >
-        Search
-      </button>
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-slate-200 mb-6">
+      <button onclick="switchTab('drug')" id="drugTabBtn" class="flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition">Single Drug Lookup</button>
+      <button onclick="switchTab('class')" id="classTabBtn" class="flex-1 py-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-700 focus:outline-none transition">Browse by Drug Class</button>
+    </div>
+
+    <!-- Drug Lookup View -->
+    <div id="drugView" class="space-y-4">
+      <div class="flex gap-2 mb-6">
+        <input 
+          type="text" 
+          id="drugInput" 
+          placeholder="Enter drug name (e.g., lisinopril, amoxicillin)..." 
+          onkeydown="if(event.key === 'Enter') searchDrug()"
+          class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm text-sm"
+        >
+        <button 
+          onclick="searchDrug()" 
+          class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-sm text-sm"
+        >
+          Search
+        </button>
+      </div>
+    </div>
+
+    <!-- Class Browser View -->
+    <div id="classView" class="space-y-4 hidden">
+      <div class="flex gap-2 mb-6">
+        <input 
+          type="text" 
+          id="classInput" 
+          placeholder="Enter drug class (e.g., Aminoglycoside, Penicillin)..." 
+          onkeydown="if(event.key === 'Enter') searchClass()"
+          class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm text-sm"
+        >
+        <button 
+          onclick="searchClass()" 
+          class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-sm text-sm"
+        >
+          Find Class
+        </button>
+      </div>
     </div>
 
     <div id="resultContainer" class="space-y-4"></div>
   </div>
 
   <script>
-    async function searchDrug() {
-      const query = document.getElementById('drugInput').value.trim();
+    function switchTab(tab) {
+      const drugView = document.getElementById('drugView');
+      const classView = document.getElementById('classView');
+      const drugBtn = document.getElementById('drugTabBtn');
+      const classBtn = document.getElementById('classTabBtn');
       const container = document.getElementById('resultContainer');
-      
-      if (!query) return;
 
-      container.innerHTML = '<p class="text-center text-slate-500 py-6">Resolving medication via RxNorm & openFDA...</p>';
+      container.innerHTML = '';
+
+      if (tab === 'drug') {
+        drugView.classList.remove('hidden');
+        classView.classList.add('hidden');
+        drugBtn.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
+        classBtn.className = "flex-1 py-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-700 focus:outline-none transition";
+      } else {
+        drugView.classList.add('hidden');
+        classView.classList.remove('hidden');
+        classBtn.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
+        drugBtn.className = "flex-1 py-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-700 focus:outline-none transition";
+      }
+    }
+
+    async function searchDrug() {
+      const query = document.getElementById('drugInput').value.trim().toLowerCase();
+      if (!query) return;
+      await fetchAndDisplayDrug(query);
+    }
+
+    async function fetchAndDisplayDrug(query) {
+      const container = document.getElementById('resultContainer');
+      container.innerHTML = '<p class="text-center text-slate-500 py-6">Querying openFDA clinical database...</p>';
 
       try {
-        // Step 1: Query RxNorm to resolve brand names to generic names or concepts
-        const rxNormUrl = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(query)}`;
-        const rxNormRes = await fetch(rxNormUrl);
-        const rxNormData = await rxNormRes.json();
+        const fdaUrl = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:${encodeURIComponent(query)}&limit=1`;
         
-        let searchTerm = query;
-        const rxcuiList = rxNormData.idGroup?.rxnormId;
+        let response = await fetch(fdaUrl);
         
-        if (rxcuiList && rxcuiList.length > 0) {
-          // Fetch the related generic name using the first found RxCUI
-          const genericUrl = `https://rxnav.nlm.nih.gov/REST/rxcui/${rxcuiList[0]}/related.json?tty=IN`;
-          const genRes = await fetch(genericUrl);
-          const genData = await genRes.json();
-          const conceptGroup = genData.relatedGroup?.conceptGroup;
-          
-          if (conceptGroup) {
-            for (let group of conceptGroup) {
-              if (group.conceptProperties && group.conceptProperties.length > 0) {
-                searchTerm = group.conceptProperties[0].name;
-                break;
-              }
-            }
-          }
+        if (!response.ok) {
+          const brandUrl = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:${encodeURIComponent(query)}&limit=1`;
+          response = await fetch(brandUrl);
+          if (!response.ok) throw new Error('Medication not found.');
         }
-
-        // Step 2: Query openFDA using the resolved generic term (or fallback to original query)
-        const fdaUrl = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"+OR+openfda.brand_name:"${encodeURIComponent(query)}"+OR+openfda.generic_name:"${encodeURIComponent(query)}"&limit=1`;
-        
-        const response = await fetch(fdaUrl);
-        if (!response.ok) throw new Error('Medication not found.');
 
         const data = await response.json();
         const drug = data.results[0];
 
         const brand = drug.openfda?.brand_name?.[0] || query;
-        const generic = drug.openfda?.generic_name?.[0] || searchTerm;
-        const classification = drug.openfda?.substance_name?.[0] || 'Classification not explicitly listed.';
-        const drugClass = drug.openfda?.pharm_class_epc?.[0] || 'Drug class not explicitly listed.';
-        const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || drug.openfda?.pharmacologic_class?.[0] || 'Classification data not explicitly listed.';
-        const indications = drug.indications_and_usage?.[0] || 'No indications listed.';
+        const generic = drug.openfda?.generic_name?.[0] || query;
+        
+        // Strict mapping targeting exact pharmacologic class fields, avoiding ingredient name cross-contamination
+        const classification = drug.openfda?.pharm_class_epc?.[0] || 'Classification data pending package insert update.';
+        const drugClass = drug.openfda?.pharm_class_epc?.[0] || drug.openfda?.pharm_class_moa?.[0] || 'Drug class not explicitly listed.';
+        const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || 'Mechanism of action data not explicitly listed.';
+        const indications = drug.indications_and_usage?.[0] || 'No therapeutic use / indications listed.';
+        const adverse = drug.adverse_reactions?.[0] || 'No adverse reactions listed.';
+        const warnings = drug.warnings?.[0] || drug.boxed_warning?.[0] || 'No specific nursing considerations or warnings listed.';
 
         container.innerHTML = `
           <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-            <div class="border-b pb-4">
-              <h2 class="text-2xl font-bold text-slate-800 uppercase tracking-wide">${brand}</h2>
-              <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic / Resolved: ${generic}</p>
+            <div class="border-b pb-4 flex justify-between items-start">
+              <div>
+                <h2 class="text-2xl font-bold text-slate-800 uppercase tracking-wide">${brand}</h2>
+                <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic: ${generic}</p>
+              </div>
+              <button onclick="document.getElementById('resultContainer').innerHTML='';" class="text-xs text-slate-400 hover:text-slate-600">Back</button>
             </div>
 
             <div>
-              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Classification</h3>
+              <div class="flex justify-between items-center bg-slate-100 p-2 rounded">
+                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider">Classification</h3>
+                <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
               <p class="text-slate-600 text-sm mt-2 leading-relaxed uppercase">${classification}</p>
             </div>
 
             <div>
-              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Drug Class</h3>
+              <div class="flex justify-between items-center bg-slate-100 p-2 rounded">
+                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider">Drug Class</h3>
+                <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
               <p class="text-slate-600 text-sm mt-2 leading-relaxed">${drugClass}</p>
             </div>
 
             <div>
-              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Pharmacological / Chemical Class</h3>
+              <div class="flex justify-between items-center bg-slate-100 p-2 rounded">
+                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider">Mechanism of Action</h3>
+                <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
               <p class="text-slate-600 text-sm mt-2 leading-relaxed">${pharmacologicClass}</p>
             </div>
 
             <div>
-              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Indications & Usage</h3>
-              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${indications.substring(0, 600)}...</p>
+              <div class="flex justify-between items-center bg-slate-100 p-2 rounded">
+                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider">Therapeutic Use & Indications</h3>
+                <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${indications.substring(0, 500)}...</p>
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center bg-amber-50 p-2 rounded">
+                <h3 class="font-bold text-amber-700 text-xs uppercase tracking-wider">Adverse Reactions / Side Effects</h3>
+                <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${adverse.substring(0, 500)}...</p>
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center bg-blue-50 p-2 rounded">
+                <h3 class="font-bold text-blue-700 text-xs uppercase tracking-wider">Nursing Considerations & Warnings</h3>
+                <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Source: openFDA</span>
+              </div>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${warnings.substring(0, 500)}...</p>
             </div>
           </div>
         `;
       } catch (error) {
-        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try another brand or generic name.</div>`;
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try typing a standard generic name like "lisinopril" or "amoxicillin".</div>`;
+      }
+    }
+
+    async function searchClass() {
+      const className = document.getElementById('classInput').value.trim();
+      const container = document.getElementById('resultContainer');
+      
+      if (!className) return;
+
+      container.innerHTML = '<p class="text-center text-slate-500 py-6">Searching openFDA class directory...</p>';
+
+      try {
+        const fdaClassUrl = `https://api.fda.gov/drug/label.json?search=openfda.pharm_class_epc:${encodeURIComponent(className)}&limit=15`;
+        const res = await fetch(fdaClassUrl);
+        if (!res.ok) throw new Error('Drug class not found.');
+
+        const data = await res.json();
+        const results = data.results;
+
+        if (!results || results.length === 0) {
+          throw new Error('No generic medications found for this class.');
+        }
+
+        const uniqueGenerics = [...new Set(results.map(item => item.openfda?.generic_name?.[0]).filter(Boolean))];
+
+        if (uniqueGenerics.length === 0) {
+          throw new Error('No generic names available for this class.');
+        }
+
+        let listHtml = `
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+            <h2 class="text-xl font-bold text-slate-800">Class: ${className.toUpperCase()}</h2>
+            <p class="text-xs text-slate-500">Click any generic medication below to load its full single-drug profile:</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 max-h-96 overflow-y-auto pr-2">
+        `;
+
+        uniqueGenerics.forEach(name => {
+          listHtml += `<button onclick="fetchAndDisplayDrug('${name}')" class="text-left p-3 border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition text-sm font-medium text-slate-700 uppercase">${name}</button>`;
+        });
+
+        listHtml += `</div></div>`;
+        container.innerHTML = listHtml;
+
+      } catch (error) {
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find member drugs for class "${className}". Try terms like "Penicillin" or "Aminoglycoside".</div>`;
       }
     }
   </script>
