@@ -18,7 +18,7 @@
       <input 
         type="text" 
         id="drugInput" 
-        placeholder="Enter drug name (e.g., Metformin, Lisinopril)..." 
+        placeholder="Enter drug name (brand or generic, e.g., Glucophage, Lisinopril)..." 
         onkeydown="if(event.key === 'Enter') searchDrug()"
         class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
       >
@@ -40,27 +40,65 @@
       
       if (!query) return;
 
-      container.innerHTML = '<p class="text-center text-slate-500 py-6">Searching openFDA clinical database...</p>';
-
-      const url = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(query)}"+OR+openfda.brand_name:"${encodeURIComponent(query)}"&limit=1`;
+      container.innerHTML = '<p class="text-center text-slate-500 py-6">Resolving medication via RxNorm & openFDA...</p>';
 
       try {
-        const response = await fetch(url);
+        // Step 1: Query RxNorm to resolve brand names to generic names or concepts
+        const rxNormUrl = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(query)}`;
+        const rxNormRes = await fetch(rxNormUrl);
+        const rxNormData = await rxNormRes.json();
+        
+        let searchTerm = query;
+        const rxcuiList = rxNormData.idGroup?.rxnormId;
+        
+        if (rxcuiList && rxcuiList.length > 0) {
+          // Fetch the related generic name using the first found RxCUI
+          const genericUrl = `https://rxnav.nlm.nih.gov/REST/rxcui/${rxcuiList[0]}/related.json?tty=IN`;
+          const genRes = await fetch(genericUrl);
+          const genData = await genRes.json();
+          const conceptGroup = genData.relatedGroup?.conceptGroup;
+          
+          if (conceptGroup) {
+            for (let group of conceptGroup) {
+              if (group.conceptProperties && group.conceptProperties.length > 0) {
+                searchTerm = group.conceptProperties[0].name;
+                break;
+              }
+            }
+          }
+        }
+
+        // Step 2: Query openFDA using the resolved generic term (or fallback to original query)
+        const fdaUrl = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"+OR+openfda.brand_name:"${encodeURIComponent(query)}"+OR+openfda.generic_name:"${encodeURIComponent(query)}"&limit=1`;
+        
+        const response = await fetch(fdaUrl);
         if (!response.ok) throw new Error('Medication not found.');
 
         const data = await response.json();
         const drug = data.results[0];
 
         const brand = drug.openfda?.brand_name?.[0] || query;
-        const generic = drug.openfda?.generic_name?.[0] || 'N/A';
-        const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || drug.openfda?.pharmacologic_class?.[0] || 'Classification data not explicitly listed in FDA structured fields.';
+        const generic = drug.openfda?.generic_name?.[0] || searchTerm;
+        const classification = drug.openfda?.substance_name?.[0] || 'Classification not explicitly listed.';
+        const drugClass = drug.openfda?.pharm_class_epc?.[0] || 'Drug class not explicitly listed.';
+        const pharmacologicClass = drug.openfda?.pharm_class_moa?.[0] || drug.openfda?.pharmacologic_class?.[0] || 'Classification data not explicitly listed.';
         const indications = drug.indications_and_usage?.[0] || 'No indications listed.';
 
         container.innerHTML = `
           <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
             <div class="border-b pb-4">
               <h2 class="text-2xl font-bold text-slate-800 uppercase tracking-wide">${brand}</h2>
-              <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic: ${generic}</p>
+              <p class="text-sm text-blue-600 font-semibold mt-0.5">Generic / Resolved: ${generic}</p>
+            </div>
+
+            <div>
+              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Classification</h3>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed uppercase">${classification}</p>
+            </div>
+
+            <div>
+              <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider bg-slate-100 p-2 rounded">Drug Class</h3>
+              <p class="text-slate-600 text-sm mt-2 leading-relaxed">${drugClass}</p>
             </div>
 
             <div>
@@ -75,7 +113,7 @@
           </div>
         `;
       } catch (error) {
-        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try another exact generic name.</div>`;
+        container.innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center text-sm border border-red-200">Could not find clinical data for "${query}". Try another brand or generic name.</div>`;
       }
     }
   </script>
