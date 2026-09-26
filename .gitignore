@@ -1,0 +1,6 @@
+# Ignore local Firebase credentials
+firebase-config.js
+
+# General system files
+.DS_Store
+node_modules/
