@@ -1,9 +1,11 @@
-// drug-engine.js
-import { db } from "./firebase-config.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// drug-engine.js - Resilient Standalone & Cloud Engine
 
 let drugDatabase = [];
+let db = null;
+let getDocRef = null;
+let setDocRef = null;
 
+// Load local database
 async function loadDatabase() {
   try {
     const response = await fetch('drugs.json');
@@ -13,6 +15,21 @@ async function loadDatabase() {
   }
 }
 loadDatabase();
+
+// Safely attempt to initialize Firebase Firestore if config exists
+async function initFirebase() {
+  try {
+    const fbConfig = await import('./firebase-config.js');
+    const firestore = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    db = fbConfig.db;
+    getDocRef = firestore.getDoc;
+    setDocRef = firestore.setDoc;
+    window.firestoreDoc = firestore.doc;
+  } catch (e) {
+    console.info('Firebase config not detected in production environment. Operating in standalone mode.');
+  }
+}
+initFirebase();
 
 export async function processDrugSearch(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
@@ -24,12 +41,17 @@ export async function processDrugSearch(rawQuery) {
   }
 
   try {
-    // Tier 2: Check Cloud Firestore Cache
-    const docRef = doc(db, 'drugs', query);
-    const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return docSnap.data();
+    // Tier 2: Check Cloud Firestore Cache (if available)
+    if (db && getDocRef && window.firestoreDoc) {
+      try {
+        const docRef = window.firestoreDoc(db, 'drugs', query);
+        const docSnap = await getDocRef(docRef);
+        if (docSnap.exists()) {
+          return docSnap.data();
+        }
+      } catch (fbErr) {
+        console.warn('Firestore read skipped:', fbErr);
+      }
     }
 
     // Tier 3: openFDA API Lookup
@@ -58,8 +80,16 @@ export async function processDrugSearch(rawQuery) {
       sourceUrl: `https://dailymed.nlm.nih.gov/dailymed/search.label?labeltype=all&query=${encodeURIComponent(query)}`
     };
 
-    // Automatically cache record in Firestore
-    await setDoc(docRef, cleanRecord);
+    // Tier 4: Automatically cache record in Firestore (if available)
+    if (db && setDocRef && window.firestoreDoc) {
+      try {
+        const docRef = window.firestoreDoc(db, 'drugs', query);
+        await setDocRef(docRef, cleanRecord);
+      } catch (cacheErr) {
+        console.warn('Firestore write skipped:', cacheErr);
+      }
+    }
+
     return cleanRecord;
 
   } catch (error) {
