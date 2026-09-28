@@ -1,0 +1,13 @@
+[
+  {
+    "generic": "ampicillin",
+    "brand": "Principen",
+    "class": "Penicillin Class Antibiotic",
+    "mechanism": "Inhibits bacterial cell wall synthesis by binding to penicillin-binding proteins (PBPs), leading to cell lysis and death.",
+    "indications": "Treatment of respiratory tract, urinary tract, and gastrointestinal infections.",
+    "adverse": "Hypersensitivity reactions, diarrhea, nausea.",
+    "nursing": "Assess for penicillin allergy prior to administration.",
+    "sourceName": "DailyMed / NIH Official Package Insert",
+    "sourceUrl": "https://dailymed.nlm.nih.gov/dailymed/search.label?labeltype=all&query=ampicillin"
+  }
+]

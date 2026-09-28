@@ -6,10 +6,6 @@
   <title>RxPulse - Nursing Drug Reference</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css">
-  
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 sm:p-8">
   <div class="max-w-2xl mx-auto">
@@ -30,7 +26,7 @@
         <input 
           type="text" 
           id="drugInput" 
-          placeholder="Enter generic name (e.g., ampicillin, lisinopril)..." 
+          placeholder="Enter generic name (e.g., ampicillin, lisinopril, furosemide)..." 
           onkeydown="if(event.key === 'Enter') searchDrug()"
           class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm text-sm"
         >
@@ -49,7 +45,7 @@
         <input 
           type="text" 
           id="classInput" 
-          placeholder="Enter class keyword (e.g., antibiotic, statin)..." 
+          placeholder="Enter class keyword (e.g., antibiotic, statin, diuretic)..." 
           onkeydown="if(event.key === 'Enter') searchClass()"
           class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm text-sm"
         >
@@ -66,8 +62,8 @@
   </div>
 
   <!-- Modular Application Scripts -->
-  <script src="firebase-config.js"></script>
-  <script src="drug-engine.js"></script>
-  <script src="ui.js"></script>
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="drug-engine.js"></script>
+  <script type="module" src="ui.js"></script>
 </body>
 </html>
