@@ -38,12 +38,11 @@ async function searchDrug() {
   }
 }
 
-// Helper to render sections with collapsible long text
 function renderSection(title, text, headerBgClass, headerTextClass) {
   const maxLength = 200;
   const isLong = text.length > maxLength;
   const shortText = isLong ? text.substring(0, maxLength) + '...' : text;
-  const sectionId = 'sec_' + Math.random().toString(36.substring(2, 9));
+  const sectionId = 'sec_' + Math.random().toString(36).substring(2, 9);
 
   return `
     <div>
@@ -91,6 +90,5 @@ function displayDrugCard(drug) {
   `;
 }
 
-// Expose functions globally for inline HTML event handlers
 window.switchTab = switchTab;
 window.searchDrug = searchDrug;

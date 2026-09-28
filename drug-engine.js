@@ -4,22 +4,22 @@ let db = null;
 let getDocRef = null;
 let setDocRef = null;
 
+// Safe local database initialization
 async function loadDatabase() {
   try {
     const response = await fetch('drugs.json');
     const text = await response.text();
-    if (text.trim()) {
+    if (text && text.trim().startsWith('[')) {
       drugDatabase = JSON.parse(text);
     } else {
       drugDatabase = [];
     }
   } catch (error) {
-    console.warn('Local drug database empty or unavailable, relying on live FDA lookups.');
     drugDatabase = [];
   }
 }
-loadDatabase();
 
+// Initialize Firebase dynamically with fallback
 async function initFirebase() {
   try {
     const fbConfig = await import('./firebase-config.js');
@@ -29,9 +29,12 @@ async function initFirebase() {
     setDocRef = firestore.setDoc;
     window.firestoreDoc = firestore.doc;
   } catch (e) {
-    console.info('Running in standalone production mode.');
+    // Standalone mode active
   }
 }
+
+// Run initializers concurrently without blocking module exports
+loadDatabase();
 initFirebase();
 
 export async function processDrugSearch(rawQuery) {
@@ -51,7 +54,7 @@ export async function processDrugSearch(rawQuery) {
           return docSnap.data();
         }
       } catch (fbErr) {
-        console.warn('Firestore read skipped:', fbErr);
+        // Skip Firestore read on error
       }
     }
 
@@ -85,7 +88,7 @@ export async function processDrugSearch(rawQuery) {
         const docRef = window.firestoreDoc(db, 'drugs', query);
         await setDocRef(docRef, cleanRecord);
       } catch (cacheErr) {
-        console.warn('Firestore write skipped:', cacheErr);
+        // Skip Firestore write on error
       }
     }
 
