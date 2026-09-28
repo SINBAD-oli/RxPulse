@@ -1,22 +1,25 @@
-// drug-engine.js - Resilient Standalone & Cloud Engine
-
+// drug-engine.js
 let drugDatabase = [];
 let db = null;
 let getDocRef = null;
 let setDocRef = null;
 
-// Load local database
 async function loadDatabase() {
   try {
     const response = await fetch('drugs.json');
-    drugDatabase = await response.json();
+    const text = await response.text();
+    if (text.trim()) {
+      drugDatabase = JSON.parse(text);
+    } else {
+      drugDatabase = [];
+    }
   } catch (error) {
-    console.error('Failed to load local drug database:', error);
+    console.warn('Local drug database empty or unavailable, relying on live FDA lookups.');
+    drugDatabase = [];
   }
 }
 loadDatabase();
 
-// Safely attempt to initialize Firebase Firestore if config exists
 async function initFirebase() {
   try {
     const fbConfig = await import('./firebase-config.js');
@@ -26,7 +29,7 @@ async function initFirebase() {
     setDocRef = firestore.setDoc;
     window.firestoreDoc = firestore.doc;
   } catch (e) {
-    console.info('Firebase config not detected in production environment. Operating in standalone mode.');
+    console.info('Running in standalone production mode.');
   }
 }
 initFirebase();
@@ -34,14 +37,12 @@ initFirebase();
 export async function processDrugSearch(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
   
-  // Tier 1: Check Local JSON Database
   let found = drugDatabase.find(d => d.generic.toLowerCase() === query || d.brand.toLowerCase().includes(query));
   if (found) {
     return found;
   }
 
   try {
-    // Tier 2: Check Cloud Firestore Cache (if available)
     if (db && getDocRef && window.firestoreDoc) {
       try {
         const docRef = window.firestoreDoc(db, 'drugs', query);
@@ -54,7 +55,6 @@ export async function processDrugSearch(rawQuery) {
       }
     }
 
-    // Tier 3: openFDA API Lookup
     let fdaUrl = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(query)}"&limit=1`;
     let response = await fetch(fdaUrl);
 
@@ -80,7 +80,6 @@ export async function processDrugSearch(rawQuery) {
       sourceUrl: `https://dailymed.nlm.nih.gov/dailymed/search.label?labeltype=all&query=${encodeURIComponent(query)}`
     };
 
-    // Tier 4: Automatically cache record in Firestore (if available)
     if (db && setDocRef && window.firestoreDoc) {
       try {
         const docRef = window.firestoreDoc(db, 'drugs', query);
